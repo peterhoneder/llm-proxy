@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A full-repo scan on a schedule. The action's per-event scan covers the
+  # commits in a push or PR, which is what keeps new secrets out; this is the
+  # belt-and-braces sweep over everything that is already there.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 jobs:
   check:
@@ -17,3 +23,19 @@ jobs:
 
       # fmt + vet + lint + the full suite under -race.
       - run: make check
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # gitleaks needs real history to diff against; the default shallow
+          # clone gives it one commit and nothing to compare.
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No licence needed for a personal account. If this repo ever moves
+          # to an organisation, gitleaks-action requires a free GITLEAKS_LICENSE
+          # and will fail without one.

@@ -32,6 +32,20 @@ Keys stay redacted, but be careful where that output goes.
 Keep your keys in environment variables, not in `llm-proxy.yaml`. The shipped
 `.gitignore` excludes `llm-proxy.yaml`, `.env` and `.envrc` for that reason.
 
+## Checking before you push
+
+CI scans with [gitleaks](https://github.com/gitleaks/gitleaks) on every push and
+pull request, and sweeps the whole repository weekly. Run the same checks
+locally before pushing:
+
+```sh
+gitleaks git .      # the history
+gitleaks dir .      # working tree — will flag .envrc, which is gitignored
+```
+
+Test fixtures use obviously-fake tokens (`example-proxy-token-not-a-real-secret`)
+rather than random hex, so the scanner stays worth listening to.
+
 ## Reporting
 
 Open an issue. If it is sensitive, say so without details and we'll find a
