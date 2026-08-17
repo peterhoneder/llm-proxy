@@ -79,6 +79,10 @@ func run(s scenario, fullTrace bool) error {
 	if err != nil {
 		return err
 	}
+	// Hermetic on purpose: the demo runs its own proxy against its own fake
+	// vendor, so an LLM_PROXY_TOKENS in the operator's shell must not make it
+	// reject its own requests.
+	cfg.Auth.Enabled = "false"
 	cfg.Log.FullTrace = fullTrace
 	cfg.Log.Color = "always"
 	cfg.Log.Level = "info"

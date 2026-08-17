@@ -577,3 +577,47 @@ func TestDefaultListenPort(t *testing.T) {
 		t.Error("the default must bind to loopback, since the default has no auth tokens")
 	}
 }
+
+// An explicit false must beat the environment. Without this, anything building
+// a config in-process — the demo, the test harness — inherits the operator's
+// LLM_PROXY_TOKENS and starts rejecting its own requests.
+func TestAuthEnabledFalseIgnoresTheEnvironment(t *testing.T) {
+	t.Setenv("LLM_PROXY_TOKENS", "example-proxy-token-not-a-real")
+
+	c, warns, err := Load(writeConfig(t, minimalRoute+"auth:\n  enabled: false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved, _ := c.ResolvedTokens(); len(resolved) != 0 {
+		t.Errorf("resolved %d tokens with auth.enabled=false, want none", len(resolved))
+	}
+	// The listener is now unguarded, so the exposure warning still applies on a
+	// public address — but this one is loopback, so it should stay quiet.
+	if hasWarning(warns, "no auth tokens configured") {
+		t.Errorf("unexpected exposure warning for a loopback listener: %v", warns)
+	}
+}
+
+// Configuring tokens and then disabling auth is almost certainly a mistake.
+func TestAuthEnabledFalseWithTokensWarns(t *testing.T) {
+	_, warns, err := Load(writeConfig(t, minimalRoute+`
+auth:
+  enabled: false
+  tokens:
+    - name: laptop
+      value: example-proxy-token-not-a-real
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasWarning(warns, "tokens are ignored") {
+		t.Errorf("warnings = %v, want one saying the tokens are ignored", warns)
+	}
+}
+
+func TestAuthEnabledRejectsGarbage(t *testing.T) {
+	_, _, err := Load(writeConfig(t, minimalRoute+"auth:\n  enabled: maybe\n"))
+	if err == nil || !strings.Contains(err.Error(), "auth.enabled") {
+		t.Errorf("err = %v, want it to reject an invalid auth.enabled", err)
+	}
+}

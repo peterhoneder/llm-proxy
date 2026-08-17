@@ -115,6 +115,15 @@ type Config struct {
 // exemption for local traffic: those tunnels forward to a local port, so
 // exempting loopback would exempt exactly the requests that need checking.
 type Auth struct {
+	// Enabled is auto | true | false.
+	//
+	// "auto" turns auth on when any token resolves, including from the
+	// environment, which is the zero-config path. "false" turns it off
+	// regardless — for a test or a demo that runs its own proxy and must not
+	// inherit the operator's shell, and for temporarily disabling auth without
+	// unsetting a variable.
+	Enabled string `yaml:"enabled"`
+
 	// Tokens are the accepted credentials. Each names an environment variable
 	// holding the secret, so the config file itself stays safe to commit.
 	Tokens []AuthToken `yaml:"tokens"`

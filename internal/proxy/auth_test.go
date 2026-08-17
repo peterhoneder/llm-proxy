@@ -17,6 +17,8 @@ const proxyToken = "example-proxy-token-not-a-real-secret"
 
 func withToken(name, secret string) func(*config.Config) {
 	return func(c *config.Config) {
+		// The harness disables auth by default; these tests turn it back on.
+		c.Auth.Enabled = "true"
 		c.Auth.Tokens = append(c.Auth.Tokens, config.AuthToken{Name: name, Value: secret})
 	}
 }
@@ -237,5 +239,19 @@ func TestProxyTokenIsNotRendered(t *testing.T) {
 
 	if out := h.srv.log.Renderer().Render(snap); strings.Contains(out, proxyToken) {
 		t.Errorf("the proxy token appears in the rendered report:\n%s", out)
+	}
+}
+
+// The regression guard for a bug that only shows up on a machine that actually
+// uses the tool: with LLM_PROXY_TOKENS exported, the demo and the whole test
+// suite used to get a 401 from their own in-process proxy.
+func TestHarnessDoesNotInheritAmbientTokens(t *testing.T) {
+	t.Setenv("LLM_PROXY_TOKENS", "example-proxy-token-not-a-real")
+
+	h := newHarness(t, testutil.Script{Status: 200, Body: "{}"})
+
+	if snap := h.chat(t, `{"model":"m","messages":[]}`); snap.Status != http.StatusOK {
+		t.Errorf("Status = %d, want 200 — a token in the operator's shell must not "+
+			"make an isolated proxy reject its own requests", snap.Status)
 	}
 }

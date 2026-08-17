@@ -100,6 +100,9 @@ func newHarnessCfg(
 		t.Fatalf("loading defaults: %v", err)
 	}
 	cfg.Listen = "127.0.0.1:0"
+	// Hermetic: a developer with LLM_PROXY_TOKENS exported must still be able
+	// to run the suite.
+	cfg.Auth.Enabled = "false"
 	cfg.Log.Level = "debug"
 	cfg.Log.Color = "never"
 	cfg.Routes = []config.Route{{

@@ -116,7 +116,7 @@ Everything else has a default. The settings worth knowing:
 | `log.full_trace` | off | Every header, body and SSE frame with arrival times. Keys stay redacted. |
 | `routes[].retry` | off | Retry 429s and 5xx, honouring `Retry-After`. Off means transparent. |
 | `routes[].timeouts.*` | no limit | See [Waiting](#waiting). |
-| `auth.tokens` | none | See [Exposing it](#exposing-it). |
+| `auth.tokens` | none | See [Exposing it](#exposing-it). `auth.enabled: false` ignores tokens and the environment entirely. |
 
 ## Waiting
 

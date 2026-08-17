@@ -367,6 +367,14 @@ func (c *Config) Validate() ([]Warning, error) {
 // ResolvedTokens returns the configured tokens with their secrets looked up,
 // along with the names of any that did not resolve.
 func (c *Config) ResolvedTokens() (resolved []struct{ Name, Secret string }, missing []string) {
+	// An explicit false means no credentials at all, whatever the environment
+	// says. Without this, anything that builds a config in-process — the demo,
+	// the test harness — silently inherits the operator's LLM_PROXY_TOKENS and
+	// starts rejecting its own requests.
+	if strings.EqualFold(c.Auth.Enabled, "false") {
+		return nil, nil
+	}
+
 	for i, t := range c.Auth.Tokens {
 		name := t.Name
 		if name == "" {
@@ -401,6 +409,16 @@ func (c *Config) ResolvedTokens() (resolved []struct{ Name, Secret string }, mis
 // because an environment variable was missing, is the one outcome worth
 // refusing to boot over.
 func (c *Config) validateAuth(warns []Warning, errs []error) ([]Warning, []error) {
+	switch strings.ToLower(c.Auth.Enabled) {
+	case "", "auto", "true", "false":
+	default:
+		errs = append(errs, fmt.Errorf("auth.enabled %q: want auto, true or false", c.Auth.Enabled))
+	}
+
+	if strings.EqualFold(c.Auth.Enabled, "false") && len(c.Auth.Tokens) > 0 {
+		warns = append(warns, Warning{Text: "auth.enabled is false, so the configured tokens are ignored"})
+	}
+
 	resolved, missing := c.ResolvedTokens()
 
 	if len(c.Auth.Tokens) > 0 && Bool(orTrue(c.Auth.Required)) && len(missing) > 0 {

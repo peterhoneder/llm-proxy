@@ -35,6 +35,9 @@ log:
 # Note there is no exemption for local traffic on purpose: Tailscale Funnel and
 # friends forward to a local port, so public requests arrive from loopback.
 auth:
+  # auto = on when any token resolves. Set false to ignore configured tokens
+  # and the environment entirely.
+  enabled: auto
   tokens: []
   # One variable holding a comma-separated list, so auth can be switched on
   # without touching this file:  export LLM_PROXY_TOKENS=$(openssl rand -hex 32)
