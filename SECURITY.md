@@ -46,6 +46,20 @@ gitleaks dir .      # working tree — will flag .envrc, which is gitignored
 Test fixtures use obviously-fake tokens (`example-proxy-token-not-a-real-secret`)
 rather than random hex, so the scanner stays worth listening to.
 
+## Blocking a secret before it exists
+
+CI catches a leak after the push, by which point the only real fix is rotating
+the key. A pre-commit hook catches it while the fix is still free:
+
+```sh
+make hooks        # points core.hooksPath at .githooks/
+```
+
+It scans staged changes only, prints the file, line and rule, redacts the value
+so it does not end up in your terminal scrollback, and is silent when clean.
+`git commit --no-verify` bypasses it. Without gitleaks installed it warns and
+lets the commit through, since CI is the backstop.
+
 ## Reporting
 
 Open an issue. If it is sensitive, say so without details and we'll find a

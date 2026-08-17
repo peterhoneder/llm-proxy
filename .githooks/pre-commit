@@ -1,0 +1,31 @@
+#!/bin/sh
+# Refuse to commit a secret.
+#
+# CI scans after the fact, which means a leaked key is already on GitHub by the
+# time it tells you. This runs before the commit exists, which is the only point
+# where the fix is free.
+#
+# Enable with:  make hooks     (sets core.hooksPath for this repo)
+# Bypass once:  git commit --no-verify
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+	# Deliberately not fatal: a contributor without gitleaks should still be
+	# able to commit. CI is the backstop.
+	printf '\033[33mwarning:\033[0m gitleaks not installed, skipping the secret scan\n' >&2
+	printf '         install it with: brew install gitleaks\n' >&2
+	exit 0
+fi
+
+# Only what is staged, so unstaged experiments do not block the commit.
+# -v prints the file, line and rule, which is the point — without it you get
+# "a secret was found" and no way to act on it. --redact keeps the value itself
+# out of your terminal scrollback.
+if ! output=$(gitleaks git --staged --redact -v --no-banner . 2>&1); then
+	printf '\n\033[31mCommit blocked: a staged change looks like a secret.\033[0m\n\n' >&2
+	printf '%s\n\n' "$output" >&2
+	printf 'If this is a test fixture, make it obviously fake rather than random —\n' >&2
+	printf 'high-entropy strings are indistinguishable from real keys to a scanner.\n' >&2
+	printf 'If it is genuinely not a secret: append  # gitleaks:allow  to the line.\n' >&2
+	printf 'To commit anyway:  git commit --no-verify\n\n' >&2
+	exit 1
+fi
