@@ -1,0 +1,105 @@
+# Every llm-proxy default lives here and nowhere else. This file is embedded
+# into the binary and decoded before the user's config is layered on top, so
+# this is the complete answer to "what happens if I set nothing?".
+#
+# It intentionally declares no routes: a proxy with no routes is a
+# configuration error, not a default.
+
+# 14701 rather than 8080: a debugging proxy should not have to fight the
+# nearest dev server for a port.
+listen: "127.0.0.1:14701"
+shutdown_grace: 10s
+
+log:
+  level: info
+  format: pretty
+  color: auto
+  symbols: auto
+  full_trace: false
+  max_body_bytes: 64KiB
+  unsafe_reveal_secrets: false
+  redact_headers:
+    - authorization
+    - proxy-authorization
+    - x-api-key
+    - api-key
+    - x-llm-proxy-key
+    - x-goog-api-key
+    - cookie
+    - set-cookie
+
+# Guards the proxy's own listener. With no tokens configured the proxy is open,
+# which is fine bound to 127.0.0.1 and emphatically not fine behind a tunnel —
+# startup warns when it is listening on a non-loopback address without auth.
+#
+# Note there is no exemption for local traffic on purpose: Tailscale Funnel and
+# friends forward to a local port, so public requests arrive from loopback.
+auth:
+  tokens: []
+  # One variable holding a comma-separated list, so auth can be switched on
+  # without touching this file:  export LLM_PROXY_TOKENS=$(openssl rand -hex 32)
+  tokens_env: LLM_PROXY_TOKENS
+  # Refuse to start if auth was configured but no token resolved. Starting
+  # unauthenticated because a variable was unset is the one failure mode worth
+  # being absolute about.
+  required: true
+
+otel:
+  enabled: auto
+  service_name: llm-proxy
+  log_level: debug
+
+# Inherited by every route that does not override the field.
+defaults:
+  api_key_header: Authorization
+  api_key_prefix: "Bearer "
+  forward_client_auth: false
+  http2: false
+  insecure_skip_verify: false
+  disable_keepalives: false
+  max_idle_conns_per_host: 32
+  # Deliberately below the ~60s idle close common to LLM vendors, so we retire
+  # a connection before the vendor does and stale-keepalive EOFs stay rare.
+  idle_conn_timeout: 50s
+  max_request_body: 8MiB
+  expect_done: auto
+  abort_on_truncation: true
+  timeouts:
+    # Establishing the connection is bounded: if a TCP or TLS handshake has not
+    # completed in ten seconds, nothing is going to happen.
+    connect: 10s
+    tls_handshake: 10s
+
+    # Everything after the connection is unlimited by default, and that is the
+    # whole point of this tool. A reasoning model can legitimately take ten or
+    # more minutes to its first token, and a proxy that gives up at two minutes
+    # does not observe the failure — it *is* the failure, and it hides which
+    # side would actually have given up first.
+    #
+    # Set these when you want the proxy to cut things off deliberately. A stall
+    # it ends is still attributed to the vendor for going silent, with the
+    # setting that fired named in the report.
+    response_header: 0s   # 0 = wait as long as the vendor wants for the status line
+    stream_idle: 0s       # 0 = wait as long as the vendor wants between chunks
+    total: 0s             # 0 = no ceiling on the whole request
+
+    # A client that stays connected but stops reading fills the TCP window and
+    # blocks our writes. This bounds that, and only applies while writing.
+    client_write: 5m
+
+    # Not a deadline: how often to print "still waiting" while nothing is
+    # arriving, so a ten-minute wait can be watched rather than guessed at.
+    gap_warn: 30s
+
+routes: []
+
+# Matched case-insensitively against vendor error bodies on a 4xx to recognise
+# a context-window overflow. Wording differs per vendor; add your own here.
+context_length_patterns:
+  - "maximum context length"
+  - "context_length_exceeded"
+  - "context length exceeded"
+  - "reduce the length of the messages"
+  - "too many tokens"
+  - "prompt is too long"
+  - "input length and `max_tokens` exceed context limit"

@@ -1,0 +1,78 @@
+# llm-proxy — copy to llm-proxy.yaml and edit.
+#
+# Anything omitted falls back to the defaults compiled into the binary; run
+# `llm-proxy -check` to see what the effective route table looks like.
+
+listen: "127.0.0.1:14701"
+
+# Guards the proxy's own listener. Leave it empty for local use; set a token
+# before exposing this through a tunnel:
+#
+#   export LLM_PROXY_TOKENS=$(openssl rand -hex 32)
+#
+# Clients send it as their OPENAI_API_KEY; the proxy strips it and substitutes
+# the route's real vendor key. Note there is no exemption for local traffic:
+# Tailscale Funnel forwards to a local port, so public requests arrive from
+# 127.0.0.1.
+auth:
+  tokens: []
+  # tokens:
+  #   - name: laptop
+  #     env: LLM_PROXY_TOKEN_LAPTOP
+
+log:
+  level: info
+  # full_trace dumps every header, body and SSE frame — including your prompts.
+  # API keys stay redacted regardless.
+  full_trace: false
+
+otel:
+  # "auto" exports only when OTEL_EXPORTER_OTLP_ENDPOINT (or the _TRACES_ /
+  # _LOGS_ variants) is set, so out of the box there is nothing to run.
+  enabled: auto
+  service_name: llm-proxy
+
+routes:
+  # Point your client at http://127.0.0.1:14701/scaleway/v1 — note that the
+  # upstream below has NO /v1: the client appends it.
+  - name: scaleway
+    upstream: https://api.scaleway.ai
+    api_key_env: SCALEWAY_API_KEY
+
+  - name: mistral
+    upstream: https://api.mistral.ai
+    api_key_env: MISTRAL_API_KEY
+    # Transparent passthrough is the default. Turn retry on per route when you
+    # want rate limits absorbed rather than observed; the wait honours
+    # Retry-After and the x-ratelimit-*-reset headers.
+    retry:
+      max_attempts: 3
+      on: [429, 500, 502, 503, 504]
+      max_wait: 60s
+      base_backoff: 500ms
+      jitter: 0.2
+
+  - name: other-vendor
+    upstream: https://api.other-vendor.example
+    api_key_env: OTHER_VENDOR_API_KEY
+    # Some OpenAI-compatible servers never send `data: [DONE]`. "auto" accepts
+    # a terminal finish_reason as proof of completion; set it to "true" once
+    # you have confirmed this backend does send the sentinel, and truncation
+    # detection gets stricter.
+    expect_done: auto
+
+  # A local model server: no key, and keep-alives off while you are hunting
+  # stale-connection resets.
+  - name: local
+    upstream: http://127.0.0.1:11434
+
+  # By default the proxy waits as long as the vendor does — a ten-minute first
+  # token is fine, and gap_warn reports progress every 30s while you wait.
+  # Configure deadlines only when you want the proxy to cut things off itself.
+  - name: impatient
+    upstream: https://api.example.com
+    api_key_env: EXAMPLE_API_KEY
+    timeouts:
+      response_header: 5m
+      stream_idle: 2m
+      gap_warn: 15s

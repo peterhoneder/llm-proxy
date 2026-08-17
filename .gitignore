@@ -1,0 +1,15 @@
+# Build output
+/bin/
+/dist/
+cover.out
+
+# Local config and secrets — never commit these
+llm-proxy.yaml
+.envrc
+.env
+
+# Machine-local tool state
+.claude/settings.local.json
+
+# OS cruft
+.DS_Store
