@@ -99,6 +99,20 @@ deps:
 .PHONY: check
 check: fmt-check vet lint test-race
 
+## hooks: install the pre-commit secret scan (sets core.hooksPath)
+.PHONY: hooks
+hooks:
+	@git config core.hooksPath .githooks
+	@echo "core.hooksPath -> .githooks; bypass one commit with git commit --no-verify"
+	@command -v gitleaks >/dev/null || \
+		echo "note: gitleaks is not installed, so the hook will warn and pass (brew install gitleaks)"
+
+## secrets: scan the whole history for secrets — the command CI runs
+.PHONY: secrets
+secrets:
+	@command -v gitleaks >/dev/null || { echo "gitleaks not installed: brew install gitleaks"; exit 1; }
+	gitleaks git --redact -v --no-banner .
+
 ## check-config: validate the config and print the route table, then exit
 .PHONY: check-config
 check-config: build

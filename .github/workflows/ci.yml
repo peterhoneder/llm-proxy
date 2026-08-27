@@ -4,9 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-  # A full-repo scan on a schedule. The action's per-event scan covers the
-  # commits in a push or PR, which is what keeps new secrets out; this is the
-  # belt-and-braces sweep over everything that is already there.
+  # A weekly sweep. The scan below already covers the whole history on every
+  # push, so this exists for one reason: gitleaks ships new rules, and a key
+  # that was invisible to last month's ruleset is worth catching this month.
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
@@ -15,9 +15,9 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -26,16 +26,32 @@ jobs:
 
   secrets:
     runs-on: ubuntu-latest
+    env:
+      # Pinned and checksummed. An unpinned scanner is a supply-chain hole in
+      # the one job whose purpose is supply-chain hygiene.
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          # gitleaks needs real history to diff against; the default shallow
-          # clone gives it one commit and nothing to compare.
+          # gitleaks walks real history; the default shallow clone gives it one
+          # commit and nothing to walk.
           fetch-depth: 0
 
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # No licence needed for a personal account. If this repo ever moves
-          # to an organisation, gitleaks-action requires a free GITLEAKS_LICENSE
-          # and will fail without one.
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$tarball" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${tarball}"
+          echo "${GITLEAKS_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" gitleaks
+          sudo install gitleaks /usr/local/bin/gitleaks
+
+      # The same command the pre-commit hook runs, over the whole history.
+      # Deliberately not gitleaks-action: it derives a commit range from the
+      # push payload and asks git for <first-pushed-commit>^, which does not
+      # exist when the range starts at the root commit. git fails, gitleaks
+      # exits 1, and the action reports "Unexpected exit code [1]" — a tooling
+      # error dressed up as a security finding. A full scan has no such edge.
+      - run: make secrets

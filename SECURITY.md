@@ -34,12 +34,12 @@ Keep your keys in environment variables, not in `llm-proxy.yaml`. The shipped
 
 ## Checking before you push
 
-CI scans with [gitleaks](https://github.com/gitleaks/gitleaks) on every push and
-pull request, and sweeps the whole repository weekly. Run the same checks
-locally before pushing:
+CI scans the whole history with [gitleaks](https://github.com/gitleaks/gitleaks)
+on every push and pull request, and again weekly to catch what older rulesets
+missed. Run the same scan locally before pushing:
 
 ```sh
-gitleaks git .      # the history
+make secrets        # the history — the exact command CI runs
 gitleaks dir .      # working tree — will flag .envrc, which is gitignored
 ```
 

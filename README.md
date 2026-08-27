@@ -238,7 +238,8 @@ make test         # everything
 make test-race    # everything, with the race detector
 make check        # fmt + vet + lint + race tests
 make demo-scenarios
-make hooks        # pre-commit secret scan, needs gitleaks
+make hooks        # install the pre-commit secret scan, needs gitleaks
+make secrets      # scan the history for secrets, as CI does
 ```
 
 Tests run a real proxy against a scriptable fake vendor over real TCP. Nothing
