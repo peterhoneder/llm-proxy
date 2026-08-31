@@ -518,7 +518,16 @@ func (h *routeHandler) postmortem(rec *record.Request, status int, a *record.Att
 	// consequence of that departure, not an independent vendor failure. Left
 	// alone it would blame the vendor for whatever its socket did in response
 	// to a cancelled read.
-	if f != nil && f.Side == fault.SideUpstream && rec.ClientGone() {
+	//
+	// "Had already gone" has to mean gone *before the response was finished*,
+	// which is why this asks whether bytes were left undelivered rather than
+	// whether the client is gone now. The watcher stays armed until the handler
+	// returns — well past this point — so a client that took every byte the
+	// upstream sent and then closed, which is what any client without
+	// keep-alives does on success, would otherwise reach in and rewrite a
+	// vendor truncation as its own fault, depending purely on whether its FIN
+	// landed before this line ran.
+	if f != nil && f.Side == fault.SideUpstream && rec.ClientLeftMidResponse() {
 		f = fault.AsInduced(f)
 	}
 

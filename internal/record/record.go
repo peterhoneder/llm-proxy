@@ -389,6 +389,21 @@ func (r *Request) ClientGone() bool {
 	return !r.ClientGoneAt.IsZero()
 }
 
+// ClientLeftMidResponse reports whether the client went away while the proxy
+// still had bytes to hand it.
+//
+// The bare fact that a client is gone says nothing about causation. A client
+// with keep-alives disabled closes the connection on every successful request,
+// once it has everything it asked for, and the watcher is still armed while the
+// verdict is being drawn. Pairing the departure with undelivered bytes is what
+// separates a client that interrupted the response from one that was simply
+// finished with it.
+func (r *Request) ClientLeftMidResponse() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return !r.ClientGoneAt.IsZero() && r.BytesToClient < r.BytesFromUpstream
+}
+
 // AddRead records bytes read from the upstream.
 func (r *Request) AddRead(n int, at time.Time) {
 	r.lastUpstreamByte.Store(at.UnixNano())
