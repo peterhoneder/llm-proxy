@@ -64,11 +64,15 @@ bench:
 vet:
 	go vet ./...
 
-## lint: golangci-lint when installed, otherwise go vet
+## lint: golangci-lint when installed, otherwise go vet (an error under CI)
 .PHONY: lint
 lint:
 ifdef GOLANGCI
 	golangci-lint run ./...
+else ifdef CI
+	@echo "golangci-lint is not installed; the go vet fallback would report a" >&2
+	@echo "green lint step that linted almost nothing. Install it in the workflow." >&2
+	@exit 1
 else
 	@echo "golangci-lint not installed; falling back to go vet (make tools to install)"
 	@go vet ./...

@@ -11,32 +11,70 @@ on:
     - cron: "0 6 * * 1"
   workflow_dispatch:
 
+# go test runs arbitrary code from the PR, so its token gets read and nothing
+# else. Also set in repo settings; this copy is the one that shows up in a diff.
+permissions:
+  contents: read
+
+# Cancel a superseded PR run on force-push. Not main or the weekly sweep:
+# each of those runs is the record for one commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The default is 6 hours. The race suite takes a couple of minutes.
+    timeout-minutes: 15
+    env:
+      # The runner image ships no golangci-lint, and `make lint` used to fall
+      # back to `go vet` when it was missing, so this step passed for months
+      # without linting. Pinned like gitleaks, and to the version developers
+      # run locally, so CI and a laptop disagree only when the code differs.
+      GOLANGCI_VERSION: 2.13.2
+      GOLANGCI_SHA256: 2277d43b98ec0054280f2ac26b53268bae97682444678a59a657dd565da021d6
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Without this the job's token is left behind in .git/config, where
+          # the pull request's own test code can read it.
+          persist-credentials: false
 
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
-      # fmt + vet + lint + the full suite under -race.
+      - name: Install golangci-lint
+        run: |
+          set -euo pipefail
+          tarball="golangci-lint-${GOLANGCI_VERSION}-linux-amd64.tar.gz"
+          curl -sSfL -o "$tarball" \
+            "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_VERSION}/${tarball}"
+          echo "${GOLANGCI_SHA256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball" --strip-components=1 \
+            "golangci-lint-${GOLANGCI_VERSION}-linux-amd64/golangci-lint"
+          sudo install golangci-lint /usr/local/bin/golangci-lint
+
+      # fmt + vet + lint + the full suite under -race. CI is set by Actions, so
+      # a missing linter fails here instead of quietly downgrading to go vet.
       - run: make check
 
   secrets:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # Pinned and checksummed. An unpinned scanner is a supply-chain hole in
       # the one job whose purpose is supply-chain hygiene.
       GITLEAKS_VERSION: 8.30.1
       GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # gitleaks walks real history; the default shallow clone gives it one
           # commit and nothing to walk.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install gitleaks
         run: |

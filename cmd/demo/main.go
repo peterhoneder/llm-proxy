@@ -252,14 +252,14 @@ func streamHandler(n int, end ending, finish string) http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		writeHead(rw)
 		for i := 0; i < n; i++ {
 			frame := fmt.Sprintf(
 				`data: {"id":"chatcmpl-demo","model":"demo-model","choices":[{"index":0,"delta":{"content":"tok%d"}}]}`+"\n\n", i)
 			if end == endTruncate && i == n-1 {
-				fmt.Fprintf(rw, "%x\r\n%s", len(frame), frame[:len(frame)/2])
+				_, _ = fmt.Fprintf(rw, "%x\r\n%s", len(frame), frame[:len(frame)/2])
 				_ = rw.Flush()
 				return
 			}
@@ -291,7 +291,7 @@ func slowFirstToken(think time.Duration) http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		writeHead(rw)
 		time.Sleep(think)
@@ -311,7 +311,7 @@ func errorMidStream() http.HandlerFunc {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		writeHead(rw)
 		writeChunk(rw, `data: {"choices":[{"index":0,"delta":{"content":"partial answer"}}]}`+"\n\n")
 		writeChunk(rw, `data: {"error":{"message":"the model backend crashed","type":"server_error"}}`+"\n\n")
@@ -358,7 +358,7 @@ func writeHead(rw *bufio.ReadWriter) {
 }
 
 func writeChunk(rw *bufio.ReadWriter, data string) {
-	fmt.Fprintf(rw, "%x\r\n%s\r\n", len(data), data)
+	_, _ = fmt.Fprintf(rw, "%x\r\n%s\r\n", len(data), data)
 	_ = rw.Flush()
 }
 
@@ -370,7 +370,7 @@ func hangUpMidStream(addr string) {
 		return
 	}
 	body := `{"model":"demo-model","stream":true,"messages":[{"role":"user","content":"hello"}]}`
-	fmt.Fprintf(conn, "POST /demo/v1/chat/completions HTTP/1.1\r\nHost: demo\r\n"+
+	_, _ = fmt.Fprintf(conn, "POST /demo/v1/chat/completions HTTP/1.1\r\nHost: demo\r\n"+
 		"Content-Type: application/json\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
 
 	buf := make([]byte, 4096)

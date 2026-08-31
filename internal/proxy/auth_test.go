@@ -32,7 +32,7 @@ func TestUnauthenticatedRequestIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("Status = %d, want 401", resp.StatusCode)
@@ -154,7 +154,7 @@ func TestWrongTokenIsRejected(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Errorf("Status = %d, want 401", resp.StatusCode)

@@ -57,7 +57,7 @@ func run() error {
 	fs.BoolVar(&f.check, "check", false, "validate the config, print the route table and exit")
 	fs.BoolVar(&f.showVersion, "version", false, "print the version and exit")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "llm-proxy — an OpenAI-compatible wire-level debugging proxy\n\nusage: llm-proxy [flags]\n\n")
+		_, _ = fmt.Fprintf(fs.Output(), "llm-proxy — an OpenAI-compatible wire-level debugging proxy\n\nusage: llm-proxy [flags]\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -75,7 +75,7 @@ func run() error {
 			"       see llm-proxy.example.yaml for a starting point")
 	}
 
-	cfg, warnings, err := config.Load(path)
+	cfg, _, err := config.Load(path)
 	if err != nil {
 		return fmt.Errorf("config %s:\n%w", path, err)
 	}
@@ -83,7 +83,7 @@ func run() error {
 	// Re-validate after the flags, and keep *these* warnings: -listen can move
 	// the proxy onto a public address, and the warning about an unguarded
 	// listener has to reflect where it will actually listen.
-	warnings, err = cfg.Validate()
+	warnings, err := cfg.Validate()
 	if err != nil {
 		return fmt.Errorf("config %s:\n%w", path, err)
 	}
@@ -187,7 +187,7 @@ func printRouteTable(c *config.Config, path string, warnings []config.Warning) {
 	}
 
 	for _, r := range c.Routes {
-		auth := "none"
+		var auth string
 		switch {
 		case r.APIKeyEnv == "":
 			auth = "client-supplied only"
