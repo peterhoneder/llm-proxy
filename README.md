@@ -116,6 +116,7 @@ Everything else has a default. The settings worth knowing:
 | `log.full_trace` | off | Every header, body and SSE frame with arrival times. Keys stay redacted. |
 | `routes[].retry` | off | Retry 429s and 5xx, honouring `Retry-After`. Off means transparent. |
 | `routes[].timeouts.*` | no limit | See [Waiting](#waiting). |
+| `routes[].strip_params` | none | Delete top-level JSON keys from request bodies. See [When a vendor rejects a parameter](#when-a-vendor-rejects-a-parameter). |
 | `auth.tokens` | none | See [Exposing it](#exposing-it). `auth.enabled: false` ignores tokens and the environment entirely. |
 
 ## Waiting
@@ -143,6 +144,43 @@ timeouts:
 A deadline the proxy enforces still blames the vendor for going silent, and the
 report names the setting that fired, so you can tell it apart from a real
 vendor failure.
+
+## When a vendor rejects a parameter
+
+Some OpenAI-compatible backends refuse a parameter your client sends
+unconditionally, and there is no way to turn it off client-side:
+
+```json
+{"message":"Validation: Unsupported parameter(s): `prompt_cache_key`","type":"Bad Request","code":400}
+```
+
+`strip_params` deletes top-level keys from the request body before forwarding:
+
+```yaml
+routes:
+  - name: nebul
+    upstream: https://api.nebul.example
+    api_key_env: NEBUL_API_KEY
+    strip_params:
+      - prompt_cache_key
+```
+
+This is the one setting that makes the proxy edit what a client sent, so it
+comes with strings attached:
+
+- Only top-level keys, and only when the body is a JSON object. Anything else
+  goes through untouched.
+- Values that survive are re-encoded from their original bytes, so numbers keep
+  their precision and prompts keep their `<tags>`. Top-level key order and
+  whitespace do change.
+- A body over `max_request_body` is streamed rather than buffered and cannot be
+  rewritten. The request goes through intact and the report says the strip did
+  not run.
+- `model`, `messages` and `stream` are refused at startup: removing those breaks
+  the request instead of fixing it.
+- Startup names the route as rewriting requests, and every strip that removed
+  something appears in that request's report as `stripped=…`. A verdict about
+  which side broke a request has to admit the proxy edited it first.
 
 ## Exposing it
 

@@ -163,6 +163,12 @@ func (h *routeHandler) proxy(
 		h.writeProxyError(cw, rec, http.StatusBadRequest, f)
 		return
 	}
+	// Before the peek, so everything reported below describes the bytes that
+	// actually go upstream. Not limited to chat requests: a vendor that rejects
+	// a parameter rejects it on /v1/embeddings too, and a body that is not a
+	// JSON object comes back untouched anyway.
+	body = h.applyStripParams(rec, body, rest)
+
 	if rec.Chat {
 		peekPayload(rec, body)
 		// Announced only now: before the peek there is no model, stream flag or

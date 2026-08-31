@@ -205,6 +205,11 @@ type Request struct {
 	ReqBodyBytes   int64
 	BodyReplayable bool
 
+	// StrippedParams are the keys a route's strip_params actually removed from
+	// this body. Kept so the report can say the request was rewritten: a
+	// verdict on who broke a request must not omit that the proxy edited it.
+	StrippedParams []string
+
 	// ClientRequestID is an inbound X-Request-Id, kept so a harness that
 	// stamps its own correlation id can be matched to this report.
 	ClientRequestID string
@@ -340,6 +345,14 @@ func (r *Request) SetKeySource(src string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.KeySource = src
+}
+
+// SetStrippedParams records which request parameters a route's strip_params
+// removed on the way upstream.
+func (r *Request) SetStrippedParams(keys []string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.StrippedParams = append([]string(nil), keys...)
 }
 
 // Warn appends a warning.
@@ -496,6 +509,7 @@ type Snapshot struct {
 	ReqBodyBytes int64
 
 	BodyReplayable bool
+	StrippedParams []string
 
 	Status        int
 	HeadersSentAt time.Time
@@ -534,6 +548,8 @@ func (r *Request) Snapshot() Snapshot {
 	warnings := make([]Warning, len(r.Warnings))
 	copy(warnings, r.Warnings)
 
+	stripped := append([]string(nil), r.StrippedParams...)
+
 	return Snapshot{
 		ID: r.ID, ConnID: r.ConnID,
 		Start: r.Start, End: r.End, Duration: r.Duration,
@@ -548,7 +564,7 @@ func (r *Request) Snapshot() Snapshot {
 		IncludeUsage: r.IncludeUsage, MaxTokens: r.MaxTokens,
 		Temperature: r.Temperature, TopP: r.TopP,
 		NMessages: r.NMessages, ReqBody: r.ReqBody, ReqBodyBytes: r.ReqBodyBytes,
-		BodyReplayable: r.BodyReplayable,
+		BodyReplayable: r.BodyReplayable, StrippedParams: stripped,
 
 		Status: r.Status, HeadersSentAt: r.HeadersSentAt, TTFB: r.TTFB,
 

@@ -67,6 +67,13 @@ defaults:
   max_request_body: 8MiB
   expect_done: auto
   abort_on_truncation: true
+  # Top-level JSON keys deleted from request bodies before forwarding. Empty,
+  # and it belongs empty: this is the only setting that makes the proxy edit
+  # what a client sent, so it stops being a passive observer on any route that
+  # uses it. Set it when a vendor rejects a parameter your client sends
+  # unconditionally — `Unsupported parameter(s): prompt_cache_key` — and there
+  # is no way to turn it off client-side. Every strip is named in the report.
+  strip_params: []
   timeouts:
     # Establishing the connection is bounded: if a TCP or TLS handshake has not
     # completed in ten seconds, nothing is going to happen.

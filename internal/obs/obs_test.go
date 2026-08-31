@@ -183,6 +183,22 @@ func TestVerdictIsAlwaysPresent(t *testing.T) {
 	}
 }
 
+// A verdict that blames the vendor for rejecting a request must disclose that
+// the proxy rewrote that request on the way past. Without this the report reads
+// as an observation when it is partly a consequence of our own edit.
+func TestFaultReportDisclosesAStrippedRequest(t *testing.T) {
+	t.Parallel()
+	r := NewRenderer(RendererOptions{Color: false, Symbols: "ascii"})
+	snap := sampleSnapshot()
+	snap.StrippedParams = []string{"prompt_cache_key"}
+	snap.Fault = fault.New(fault.SideUpstream, fault.KindHTTPStatus, "status", nil)
+
+	out := r.Render(snap)
+	if !strings.Contains(out, "stripped=prompt_cache_key") {
+		t.Errorf("the report does not say the request was rewritten:\n%s", out)
+	}
+}
+
 // A mangled glyph in a CI log or a terminal with the wrong locale is worse than
 // a plain arrow.
 func TestAsciiSymbolsAvoidUnicode(t *testing.T) {
