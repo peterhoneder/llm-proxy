@@ -223,6 +223,31 @@ func TestValidate(t *testing.T) {
 			"max_attempts",
 		},
 		{"bad pattern", minimalRoute + "context_length_patterns:\n  - \"a(\"\n", "does not compile"},
+		{
+			"strip_params empty entry",
+			"routes:\n  - name: a\n    upstream: https://a.example.com\n    strip_params:\n      - \"\"",
+			"strip_params[0] is empty",
+		},
+		{
+			"strip_params padded key",
+			"routes:\n  - name: a\n    upstream: https://a.example.com\n    strip_params:\n      - \" store \"",
+			"whitespace",
+		},
+		{
+			"strip_params duplicate key",
+			"routes:\n  - name: a\n    upstream: https://a.example.com\n    strip_params:\n      - store\n      - store",
+			"twice",
+		},
+		{
+			"strip_params messages",
+			"routes:\n  - name: a\n    upstream: https://a.example.com\n    strip_params:\n      - messages",
+			"must not contain \"messages\"",
+		},
+		{
+			"strip_params stream",
+			"routes:\n  - name: a\n    upstream: https://a.example.com\n    strip_params:\n      - stream",
+			"must not contain \"stream\"",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -235,6 +260,56 @@ func TestValidate(t *testing.T) {
 				t.Errorf("error = %v, want it to contain %q", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+// strip_params is the one setting that makes the proxy edit what a client sent,
+// so configuring it has to be visible at startup rather than only in a report
+// somebody may never read.
+func TestStripParamsWarnsThatRequestsAreRewritten(t *testing.T) {
+	t.Parallel()
+	c, warns, err := Load(writeConfig(t, `
+routes:
+  - name: nebul
+    upstream: https://api.nebul.example
+    strip_params:
+      - prompt_cache_key
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Routes[0].StripParams; len(got) != 1 || got[0] != "prompt_cache_key" {
+		t.Errorf("strip_params = %v, want [prompt_cache_key]", got)
+	}
+	if !hasWarning(warns, "prompt_cache_key") {
+		t.Errorf("configuring strip_params produced no warning: %+v", warns)
+	}
+}
+
+// Like every other route setting, it can be set once under defaults.
+func TestStripParamsInheritsFromDefaults(t *testing.T) {
+	t.Parallel()
+	c, _, err := Load(writeConfig(t, `
+defaults:
+  strip_params:
+    - prompt_cache_key
+routes:
+  - name: inherits
+    upstream: https://a.example.com
+  - name: overrides
+    upstream: https://b.example.com
+    strip_params: []
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := c.Routes[0].StripParams; len(got) != 1 || got[0] != "prompt_cache_key" {
+		t.Errorf("route[0].strip_params = %v, want it inherited", got)
+	}
+	// An explicit empty list is a decision, not an absence: a route that says
+	// it strips nothing must not have the default handed back to it.
+	if got := c.Routes[1].StripParams; len(got) != 0 {
+		t.Errorf("route[1].strip_params = %v, want an explicit empty list to win", got)
 	}
 }
 

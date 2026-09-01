@@ -360,6 +360,12 @@ func (s *Server) StartupBanner() string {
 			width, "/"+r.Name+"/*", r.Upstream, authDescription(t), proto, retry)
 		fmt.Fprintf(&b, "        %-*s   client base_url: http://%s/%s/v1\n",
 			width, "", s.cfg.Listen, r.Name)
+		// Printed only when it is on, because it is the one setting that stops
+		// this route being a passive observer of what the client sent.
+		if len(r.StripParams) > 0 {
+			fmt.Fprintf(&b, "        %-*s   rewriting requests: stripping %s\n",
+				width, "", strings.Join(r.StripParams, ", "))
+		}
 	}
 	return b.String()
 }

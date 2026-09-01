@@ -125,6 +125,9 @@ func (c *Config) applyRouteDefaults() {
 		if r.Headers == nil {
 			r.Headers = d.Headers
 		}
+		if r.StripParams == nil {
+			r.StripParams = d.StripParams
+		}
 
 		inheritBool(&r.ForwardClientAuth, d.ForwardClientAuth)
 		inheritBool(&r.HTTP2, d.HTTP2)
@@ -331,6 +334,15 @@ func (c *Config) Validate() ([]Warning, error) {
 			errs = append(errs, fmt.Errorf("%s: expect_done %q: want auto, true or false", where, r.ExpectDone))
 		}
 
+		if err := validateStripParams(where, r.StripParams); err != nil {
+			errs = append(errs, err)
+		} else if len(r.StripParams) > 0 {
+			warns = append(warns, Warning{Route: r.Name, Text: fmt.Sprintf(
+				"strip_params is set (%s): request bodies on this route are rewritten before "+
+					"being forwarded, so what the vendor sees is not byte-for-byte what the "+
+					"client sent", strings.Join(r.StripParams, ", "))})
+		}
+
 		t := r.Timeouts
 		idle, header, gap := Dur(t.StreamIdle), Dur(t.ResponseHeader), Dur(t.GapWarn)
 		if idle > 0 && header > 0 && idle > header {
@@ -495,6 +507,43 @@ func validateUpstream(where, upstream string) error {
 		return fmt.Errorf("%s: upstream %q must not carry a query string or fragment", where, upstream)
 	}
 	return nil
+}
+
+// loadBearingParams may not be stripped. The first two make the request invalid
+// on arrival, and the third changes the response protocol out from under a
+// client that asked for SSE — three ways to turn an interop shim into a fault
+// the proxy itself caused, and then reports as the vendor's.
+var loadBearingParams = map[string]string{
+	"model":    "the vendor has nothing to route the request to",
+	"messages": "there is no prompt left to answer",
+	"stream":   "the vendor would answer a client that asked for SSE with a single JSON body",
+}
+
+func validateStripParams(where string, keys []string) error {
+	var errs []error
+	seen := make(map[string]bool, len(keys))
+	for i, k := range keys {
+		switch {
+		case strings.TrimSpace(k) == "":
+			errs = append(errs, fmt.Errorf("%s: strip_params[%d] is empty", where, i))
+		case k != strings.TrimSpace(k):
+			// A stray space is a key that silently never matches, which looks
+			// exactly like the feature not working.
+			errs = append(errs, fmt.Errorf(
+				"%s: strip_params[%d] %q has leading or trailing whitespace; JSON keys are exact",
+				where, i, k))
+		case seen[k]:
+			errs = append(errs, fmt.Errorf("%s: strip_params lists %q twice", where, k))
+		}
+		seen[k] = true
+
+		if why, bad := loadBearingParams[k]; bad {
+			errs = append(errs, fmt.Errorf(
+				"%s: strip_params must not contain %q — %s. strip_params is for parameters a "+
+					"vendor rejects, not for reshaping the request", where, k, why))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func validateRetry(where string, r *Retry) error {

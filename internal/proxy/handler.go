@@ -163,6 +163,12 @@ func (h *routeHandler) proxy(
 		h.writeProxyError(cw, rec, http.StatusBadRequest, f)
 		return
 	}
+	// Before the peek, so everything reported below describes the bytes that
+	// actually go upstream. Not limited to chat requests: a vendor that rejects
+	// a parameter rejects it on /v1/embeddings too, and a body that is not a
+	// JSON object comes back untouched anyway.
+	body = h.applyStripParams(rec, body, rest)
+
 	if rec.Chat {
 		peekPayload(rec, body)
 		// Announced only now: before the peek there is no model, stream flag or
@@ -518,7 +524,16 @@ func (h *routeHandler) postmortem(rec *record.Request, status int, a *record.Att
 	// consequence of that departure, not an independent vendor failure. Left
 	// alone it would blame the vendor for whatever its socket did in response
 	// to a cancelled read.
-	if f != nil && f.Side == fault.SideUpstream && rec.ClientGone() {
+	//
+	// "Had already gone" has to mean gone *before the response was finished*,
+	// which is why this asks whether bytes were left undelivered rather than
+	// whether the client is gone now. The watcher stays armed until the handler
+	// returns — well past this point — so a client that took every byte the
+	// upstream sent and then closed, which is what any client without
+	// keep-alives does on success, would otherwise reach in and rewrite a
+	// vendor truncation as its own fault, depending purely on whether its FIN
+	// landed before this line ran.
+	if f != nil && f.Side == fault.SideUpstream && rec.ClientLeftMidResponse() {
 		f = fault.AsInduced(f)
 	}
 

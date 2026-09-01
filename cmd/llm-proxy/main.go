@@ -211,6 +211,11 @@ func printRouteTable(c *config.Config, path string, warnings []config.Warning) {
 		fmt.Printf("      auth=%s  %s  retry=%s\n", auth, proto, retry)
 		fmt.Printf("      waits: first byte %s, between chunks %s, progress every %s\n",
 			limit(r.Timeouts.ResponseHeader), limit(r.Timeouts.StreamIdle), limit(r.Timeouts.GapWarn))
+		// Only printed when it is on: this is the one setting under which the
+		// route no longer forwards what the client actually sent.
+		if len(r.StripParams) > 0 {
+			fmt.Printf("      rewriting requests: stripping %s\n", strings.Join(r.StripParams, ", "))
+		}
 		fmt.Printf("      client base_url: http://%s/%s/v1\n\n", c.Listen, r.Name)
 	}
 

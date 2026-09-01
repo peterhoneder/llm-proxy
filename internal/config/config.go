@@ -214,6 +214,21 @@ type RouteOpts struct {
 	// which many OpenAI-compatible servers do.
 	ExpectDone string `yaml:"expect_done"`
 
+	// StripParams are top-level JSON keys deleted from a request body before it
+	// is forwarded. This is the only place llm-proxy edits what a client sent,
+	// and it is off unless a route asks for it by name.
+	//
+	// It exists for one specific interop failure: an OpenAI-compatible vendor
+	// that rejects a parameter the client's SDK sends unconditionally —
+	// `Unsupported parameter(s): prompt_cache_key` — where the client offers no
+	// way to stop sending it. Stripping it at the proxy is the only place the
+	// fix can go.
+	//
+	// Every strip that actually removes something is recorded and shown in the
+	// report, because a verdict about which side broke a request is worthless
+	// if the report does not admit the request was rewritten on the way past.
+	StripParams []string `yaml:"strip_params"`
+
 	// AbortOnTruncation aborts the downstream connection when a stream is
 	// found truncated, so the client cannot mistake it for a complete answer.
 	AbortOnTruncation *bool `yaml:"abort_on_truncation"`

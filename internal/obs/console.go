@@ -538,6 +538,13 @@ func (r *Renderer) requestSummary(snap record.Snapshot) string {
 	if !snap.BodyReplayable {
 		parts = append(parts, r.paint(ansiDim, "retry=unavailable (body too large to replay)"))
 	}
+	if len(snap.StrippedParams) > 0 {
+		// A fault report that blames a side has to disclose that the proxy
+		// edited the request first. Yellow, not dim: this is the one thing on
+		// the line that was not the client's doing.
+		parts = append(parts, r.paint(ansiYellow,
+			"stripped="+strings.Join(snap.StrippedParams, ",")))
+	}
 	return strings.Join(parts, "  ")
 }
 

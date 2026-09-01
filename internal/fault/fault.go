@@ -90,6 +90,7 @@ const (
 	KindProxyConfig   Kind = "proxy_misconfigured"
 	KindProxyInternal Kind = "proxy_internal"
 	KindBodyTooLarge  Kind = "request_body_too_large"
+	KindStripSkipped  Kind = "strip_params_skipped"
 )
 
 func (k Kind) String() string { return string(k) }
@@ -325,6 +326,8 @@ func defaultVerdict(k Kind) string {
 		return "the proxy is misconfigured — this is llm-proxy's own fault, not the vendor's."
 	case KindBodyTooLarge:
 		return "the request body exceeded max_request_body."
+	case KindStripSkipped:
+		return "a configured strip_params rewrite could not be applied, so the body went upstream unmodified."
 	case KindProxyInternal:
 		return "an internal proxy error. This is llm-proxy's own fault, not the vendor's."
 	default:

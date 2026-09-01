@@ -61,6 +61,23 @@ routes:
     # detection gets stricter.
     expect_done: auto
 
+  # Some OpenAI-compatible vendors reject a parameter the client's SDK sends
+  # unconditionally:
+  #
+  #   {"message":"Validation: Unsupported parameter(s): `prompt_cache_key`", ...}
+  #
+  # strip_params deletes top-level keys from the request body before forwarding,
+  # for exactly that case. It is the one setting that makes the proxy edit what
+  # a client sent, so bodies on this route are no longer byte-for-byte what
+  # arrived — startup says so, and every strip is named in the request report.
+  # model, messages and stream are refused: removing those breaks the request
+  # rather than fixing it.
+  - name: nebul
+    upstream: https://api.nebul.example
+    api_key_env: NEBUL_API_KEY
+    strip_params:
+      - prompt_cache_key
+
   # A local model server: no key, and keep-alives off while you are hunting
   # stale-connection resets.
   - name: local

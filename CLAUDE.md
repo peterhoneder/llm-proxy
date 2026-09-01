@@ -31,6 +31,13 @@ A confidently wrong verdict is worse than no verdict. When evidence is
 unavailable — an undecodable body, a bodyless response — report that, never
 guess.
 
+`routes[].strip_params` (`internal/proxy/rewrite.go`) is the single exception to
+byte-for-byte passthrough, and the only code that edits a client's body. It
+exists because some vendors reject a parameter the client's SDK sends
+unconditionally. Keep it narrow — top-level keys, JSON objects, opt-in per
+route — and keep every strip in the report. An edit the report does not
+disclose turns every verdict on that route into a guess.
+
 ## Layout
 
 | Package | Responsibility |

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/peterhoneder/llm-proxy/internal/fault"
 	"github.com/peterhoneder/llm-proxy/internal/record"
@@ -147,6 +148,37 @@ func TestNonStreamingTruncatedBody(t *testing.T) {
 
 	requireSide(t, snap, fault.SideUpstream)
 	requireKind(t, snap, fault.KindTruncatedBody)
+}
+
+// The same truncation, but with the client hanging up the instant it has the
+// body — which is what every client without keep-alives does on every request.
+//
+// The client watcher stays armed until the handler returns, so its stamp can
+// land while the verdict is still being drawn. It must not change the answer:
+// the client took every byte the upstream sent, so it interrupted nothing, and
+// the vendor's body still ended mid-JSON. Attribution here is decided by
+// undelivered bytes, not by which goroutine got there first.
+func TestClientHangUpAfterTruncatedBodyStillBlamesUpstream(t *testing.T) {
+	t.Parallel()
+	upstream := newRawUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"id":"cmpl-9","choices":[{"index":0,"message":{"content":"cut o`)
+	})
+	h := newHarnessWithUpstream(t, upstream)
+
+	c := testutil.Dial(t, h.addr)
+	c.Send("POST", "/vendor/v1/chat/completions", "localhost", `{"model":"m","messages":[]}`)
+	c.ReadStatusLine()
+	c.ReadHeaders()
+	c.ReadSome(time.Second)
+	c.HangUp()
+
+	snap := h.waitForRecord(t, 3*time.Second)
+	requireSide(t, snap, fault.SideUpstream)
+	requireKind(t, snap, fault.KindTruncatedBody)
+	if snap.Fault.Induced {
+		t.Error("a client that received the whole body cannot have induced the truncation")
+	}
 }
 
 func TestNonStreamingCompleteResponse(t *testing.T) {
