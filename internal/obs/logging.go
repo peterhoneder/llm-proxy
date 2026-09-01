@@ -60,7 +60,7 @@ func NewLogger(o Options) *Logger {
 
 	var consoleHandler slog.Handler
 	if pretty {
-		consoleHandler = tint.NewHandler(out, &tint.Options{
+		consoleHandler = tint.NewTextHandler(out, &tint.Options{
 			Level:      level,
 			TimeFormat: "15:04:05.000",
 			NoColor:    !color,

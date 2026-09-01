@@ -91,7 +91,7 @@ func NewUpstream(t *testing.T, scripts ...Script) *Upstream {
 	t.Helper()
 	u := &Upstream{scripts: scripts}
 	u.Server = httptest.NewServer(http.HandlerFunc(u.serve))
-	t.Cleanup(u.Server.Close)
+	t.Cleanup(u.Close)
 	return u
 }
 
@@ -164,7 +164,7 @@ func (u *Upstream) serveStream(w http.ResponseWriter, s Script) {
 	if err != nil {
 		panic(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	var head bytes.Buffer
 	fmt.Fprintf(&head, "HTTP/1.1 %d %s\r\n", statusOr(s.Status), http.StatusText(statusOr(s.Status)))
@@ -204,7 +204,7 @@ func (u *Upstream) serveStream(w http.ResponseWriter, s Script) {
 		// The final frame is where a truncation has to happen, so it is
 		// written as a partial chunk rather than a complete one.
 		if s.Ending == EndTruncateMidFrame && i == len(frames)-1 {
-			fmt.Fprintf(rw, "%x\r\n%s", len(frame), frame[:len(frame)/2])
+			_, _ = fmt.Fprintf(rw, "%x\r\n%s", len(frame), frame[:len(frame)/2])
 			_ = rw.Flush()
 			resetOrClose(conn, false)
 			return
@@ -266,7 +266,7 @@ func splitFrames(payload string) []string {
 }
 
 func writeChunk(rw *bufio.ReadWriter, data string) {
-	fmt.Fprintf(rw, "%x\r\n%s\r\n", len(data), data)
+	_, _ = fmt.Fprintf(rw, "%x\r\n%s\r\n", len(data), data)
 	_ = rw.Flush()
 }
 

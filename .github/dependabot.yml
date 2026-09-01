@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  # The workflow pins actions to commit SHAs, which is the point — a mutable
+  # tag is a stranger's push away from running in CI. Pinning without this
+  # file just trades a supply-chain hole for a stale one, so let Dependabot
+  # move the pins; it rewrites the SHA and the trailing version comment
+  # together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Two first-party actions. Separate PRs for them is noise, not signal.
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      # Patch and minor bumps land as one PR that CI either passes or does
+      # not. Majors stay separate, because those are the ones worth reading.
+      go-minor:
+        update-types: [minor, patch]

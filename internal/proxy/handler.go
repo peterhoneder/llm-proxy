@@ -360,7 +360,7 @@ func (h *routeHandler) deliver(
 	cancelUp context.CancelCauseFunc,
 	prefix []byte,
 ) {
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	streaming := isEventStream(resp.Header)
 	analyzer := analyze.New(h.srv.now)
@@ -540,8 +540,8 @@ func (h *routeHandler) postmortem(rec *record.Request, status int, a *record.Att
 
 	if status >= 400 && rec.Fault() == nil {
 		env := oaierr.Parse(errBody)
-		switch {
-		case status == http.StatusTooManyRequests:
+		switch status {
+		case http.StatusTooManyRequests:
 			rec.SetFault(statusFault(fault.KindRateLimited, status, env))
 		default:
 			if which, ok := h.srv.ctxMatchers.Match(env, errBody); ok {
@@ -776,7 +776,7 @@ func decodeForDisplay(body []byte, encoding string) []byte {
 	if err != nil {
 		return body
 	}
-	defer zr.Close()
+	defer func() { _ = zr.Close() }()
 	// A capped peek is usually a partial gzip stream, so a read error still
 	// leaves whatever decoded successfully.
 	out, _ := io.ReadAll(io.LimitReader(zr, maxErrorBody))

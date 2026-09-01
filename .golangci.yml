@@ -1,0 +1,10 @@
+version: "2"
+
+issues:
+  # The defaults stop at 3 of a kind and 50 per linter, which quietly turns a
+  # full run into a sample. A gate has to report everything it found.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  # One issue per line by default, so a second linter's finding on an already
+  # flagged line is dropped. That hid an SA1019 deprecation behind a govet hint.
+  uniq-by-line: false

@@ -10,6 +10,6 @@ import (
 // llm-proxy is likely to have it exported — and without this every test that
 // assumes an unguarded proxy would fail on their machine and pass in CI.
 func TestMain(m *testing.M) {
-	os.Unsetenv("LLM_PROXY_TOKENS")
+	_ = os.Unsetenv("LLM_PROXY_TOKENS")
 	os.Exit(m.Run())
 }
